@@ -23,9 +23,28 @@ pip install -r requirements.txt
 python main.py
 ```
 
-Controles:
+Controles (2D prototype):
 - `WASD` ou setas: mover
 - `Esc`: sair
+
+3D Prototype (Ursina):
+
+- Execute:
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+python run3d.py
+```
+
+- Controles (3D):
+- `WASD`: mover
+- mouse: olhar
+- `left click`: colocar bloco
+- `right click`: remover bloco
+
+Observação: o protótipo 3D usa a biblioteca `ursina`. Se ocorrerem problemas, verifique se sua versão do Python é compatível com `ursina` e instale uma versão compatível manualmente.
 
 Observações:
 - Este é apenas um protótipo minimalista para iniciar o jogo localmente.
