@@ -44,6 +44,15 @@ python run3d.py
 - `left click`: colocar bloco
 - `right click`: remover bloco
 
+Funcionalidades adicionais (3D):
+
+- `1`-`4`: selecionar tipo de bloco
+- `F5`: salvar mundo para `world.json`
+- `F9`: carregar mundo de `world.json`
+- `L`: alternar iluminação direcional
+
+Os blocos são salvos como uma lista de posições e índices de cor em `world.json` na raiz do projeto.
+
 Observação: o protótipo 3D usa a biblioteca `ursina`. Se ocorrerem problemas, verifique se sua versão do Python é compatível com `ursina` e instale uma versão compatível manualmente.
 
 Observações:
