@@ -80,11 +80,59 @@ class ChunkManager:
         # generate up to `per_frame` chunks from queue
         generated = 0
         total = len(self.generate_queue)
+        generated_keys = []
         while self.generate_queue and generated < per_frame:
             cx, cz = self.generate_queue.pop(0)
             self.generate_chunk(cx, cz, palette)
+            generated_keys.append((cx, cz))
             generated += 1
-        return generated, total
+        return generated_keys, total
+
+
+class Mob(Entity):
+    def __init__(self, position=(0,0,0), target=None, world_blocks=None, health=6, speed=2, **kwargs):
+        super().__init__(model='cube', color=color.rgb(180,50,50), scale=0.9, position=position, collider='box', **kwargs)
+        self.target = target
+        self.world_blocks = world_blocks
+        self.health = health
+        self.speed = speed
+        self.wander_dir = Vec3(random.uniform(-1,1), 0, random.uniform(-1,1))
+        self.wander_timer = 0
+        # health bar UI above mob
+        self.hp_bar = Entity(parent=self, model='quad', scale=(0.6, 0.06), y=1.1, x=0, color=color.green)
+
+    def take_damage(self, amount):
+        self.health -= amount
+        if self.health <= 0:
+            self.die()
+        else:
+            self.hp_bar.scale_x = max(0, self.health / 6)
+
+    def die(self):
+        # spawn a small drop
+        drop = Entity(model='cube', color=color.rgb(200,180,60), scale=0.4, position=self.position, collider=None)
+        destroy(self.hp_bar)
+        destroy(self)
+
+    def update(self):
+        # simple AI: wander, if target close chase
+        if not self.target:
+            return
+        dist = distance(self.position, self.target.position)
+        if dist < 10:
+            # chase
+            dir = (self.target.position - self.position)
+            dir.y = 0
+            if dir.length() > 0.1:
+                dir = dir.normalized()
+                self.position += dir * self.speed * time.dt
+        else:
+            # wander
+            self.wander_timer -= time.dt
+            if self.wander_timer <= 0:
+                self.wander_timer = random.uniform(1.0, 3.0)
+                self.wander_dir = Vec3(random.uniform(-1,1), 0, random.uniform(-1,1)).normalized()
+            self.position += self.wander_dir * (self.speed * 0.4) * time.dt
 
 def main():
     app = Ursina()
@@ -223,7 +271,22 @@ def main():
             prev_chunk = (cx, cz)
 
         # process a small number of chunks per frame so UI remains responsive
-        generated, total = cm.process_queue(palette, per_frame=1)
+        generated_keys, total = cm.process_queue(palette, per_frame=1)
+        # spawn mobs for newly generated chunks
+        for (gcx, gcz) in generated_keys:
+            # choose a few spawn positions within chunk
+            ox, oz = cm.chunk_origin(gcx, gcz)
+            for sx in range(ox, ox + cm.chunk_size, max(1, cm.chunk_size // 4)):
+                for sz in range(oz, oz + cm.chunk_size, max(1, cm.chunk_size // 4)):
+                    # find surface height
+                    h = cm._height_at(sx, sz)
+                    spawn_pos = (sx + 0.5, h + 1, sz + 0.5)
+                    # spawn a mob at spawn_pos
+                    mob = Mob(position=spawn_pos, target=player, world_blocks=cm.blocks)
+                    # keep reference in blocks dict? mobs are tracked by their own list
+                    if not hasattr(cm, 'mobs'):
+                        cm.mobs = []
+                    cm.mobs.append(mob)
         if total > 0:
             loading_overlay.enabled = True
             loading_text.enabled = True
