@@ -4,7 +4,6 @@ import json
 import os
 import math
 
-
 def _round_vec(v):
     return (round(v[0]), round(v[1]), round(v[2]))
 
@@ -15,6 +14,7 @@ class ChunkManager:
         self.view_distance = view_distance
         self.chunks = {}  # (cx, cz) -> list of positions in that chunk
         self.blocks = {}  # pos tuple -> Entity
+        self.generate_queue = []  # queue of (cx, cz) to generate
 
     def chunk_coord(self, x, z):
         cx = math.floor(x / self.chunk_size)
@@ -25,11 +25,12 @@ class ChunkManager:
         return cx * self.chunk_size, cz * self.chunk_size
 
     def _height_at(self, x, z):
-        # simple deterministic height function (procedural)
+        # deterministic height function (procedural)
         h = int(math.floor((math.sin(x * 0.12) + math.cos(z * 0.12)) * 2.5 + 3))
-        return max(0, min(h, 8))
+        return max(0, min(h, 10))
 
     def generate_chunk(self, cx, cz, palette):
+        # synchronous generation of one chunk
         ox, oz = self.chunk_origin(cx, cz)
         positions = []
         for x in range(ox, ox + self.chunk_size):
@@ -56,6 +57,7 @@ class ChunkManager:
         del self.chunks[key]
 
     def update(self, player_pos, palette):
+        # schedule chunk generation/unload (non-blocking)
         px, py, pz = player_pos
         pcx, pcz = self.chunk_coord(px, pz)
         needed = set()
@@ -64,16 +66,25 @@ class ChunkManager:
             for dz in range(-r, r + 1):
                 needed.add((pcx + dx, pcz + dz))
 
-        # generate missing
+        # queue missing
         for key in needed:
-            if key not in self.chunks:
-                self.generate_chunk(key[0], key[1], palette)
+            if key not in self.chunks and key not in self.generate_queue:
+                self.generate_queue.append(key)
 
-        # unload extras
+        # unload extras immediately
         for existing in list(self.chunks.keys()):
             if existing not in needed:
                 self.unload_chunk(existing)
 
+    def process_queue(self, palette, per_frame=1):
+        # generate up to `per_frame` chunks from queue
+        generated = 0
+        total = len(self.generate_queue)
+        while self.generate_queue and generated < per_frame:
+            cx, cz = self.generate_queue.pop(0)
+            self.generate_chunk(cx, cz, palette)
+            generated += 1
+        return generated, total
 
 def main():
     app = Ursina()
@@ -91,10 +102,45 @@ def main():
 
     world_file = os.path.join(os.getcwd(), 'world.json')
 
-    # initial load
+    # initial load (schedule)
     cm.update(player.position, palette)
 
     current_idx = 0
+
+    # --- UI: hotbar & inventory & loading overlay ---
+    hotbar_slots = []
+    hotbar_size = 9
+    slot_spacing = 0.09
+    start_x = -((hotbar_size - 1) * slot_spacing) / 2
+
+    hotbar_parent = Entity(parent=camera.ui)
+    for i in range(hotbar_size):
+        x = start_x + i * slot_spacing
+        slot = Entity(parent=hotbar_parent, model='quad', color=color.rgba(50, 50, 50, 200), scale=(0.085, 0.085), x=x, y=-0.42)
+        hotbar_slots.append(slot)
+
+    selector = Entity(parent=hotbar_parent, model='quad', color=color.rgba(255, 255, 255, 50), scale=(0.09, 0.09), x=start_x, y=-0.42)
+
+    # inventory panel (hidden by default)
+    inventory_open = False
+    inv_cols = 9
+    inv_rows = 4
+    inv_parent = Entity(parent=camera.ui, enabled=False)
+    inv_bg = Entity(parent=inv_parent, model='quad', color=color.rgba(20, 20, 20, 220), scale=(0.7, 0.5), y=0)
+    inv_slots = []
+    inv_spacing = 0.07
+    top_x = -((inv_cols - 1) * inv_spacing) / 2
+    top_y = 0.12
+    for r in range(inv_rows):
+        for c in range(inv_cols):
+            x = top_x + c * inv_spacing
+            y = top_y - r * inv_spacing
+            s = Entity(parent=inv_parent, model='quad', color=color.rgba(200, 200, 200, 10), scale=(0.06, 0.06), x=x, y=y)
+            inv_slots.append(s)
+
+    # loading overlay
+    loading_overlay = Entity(parent=camera.ui, model='quad', color=color.rgba(0, 0, 0, 220), scale=2, enabled=False)
+    loading_text = Text(parent=camera.ui, text='LOADING...', scale=2, y=0, enabled=False)
 
     def save_world():
         data = []
@@ -111,6 +157,7 @@ def main():
         # clear all chunks/blocks
         for key in list(cm.chunks.keys()):
             cm.unload_chunk(*key)
+        cm.generate_queue.clear()
         with open(world_file, 'r') as f:
             data = json.load(f)
         for item in data:
@@ -122,15 +169,28 @@ def main():
 
     prev_chunk = cm.chunk_coord(player.x, player.z)
 
-    def input(key):
-        nonlocal current_idx, prev_chunk
-        if key in ('1', '2', '3', '4'):
-            idx = int(key) - 1
-            if 0 <= idx < len(palette):
-                current_idx = idx
-                info.text = f'Palette {current_idx+1}'
+    def update_hotbar():
+        # color hotbar slots from palette (looped)
+        for i, slot in enumerate(hotbar_slots):
+            col = palette[i % len(palette)] if i < len(palette) else color.gray
+            slot.color = col
+        selector.x = start_x + current_idx * slot_spacing
 
-        if key == 'left mouse down':
+    update_hotbar()
+
+    def input(key):
+        nonlocal current_idx, prev_chunk, inventory_open
+        if key in ('1','2','3','4','5','6','7','8','9'):
+            idx = int(key) - 1
+            if 0 <= idx < hotbar_size:
+                current_idx = idx
+                update_hotbar()
+
+        if key == 'i':
+            inventory_open = not inventory_open
+            inv_parent.enabled = inventory_open
+
+        if key == 'left mouse down' and not inventory_open:
             if mouse.world_point is None:
                 return
             world_pos = mouse.world_point + mouse.normal * 0.5
@@ -139,7 +199,7 @@ def main():
                 ent = Entity(model='cube', color=palette[current_idx % len(palette)], position=pos, collider='box')
                 cm.blocks[pos] = ent
 
-        if key == 'right mouse down':
+        if key == 'right mouse down' and not inventory_open:
             if mouse.world_point is None:
                 return
             pos = _round_vec(mouse.world_point - mouse.normal * 0.5)
@@ -156,11 +216,21 @@ def main():
 
     def update():
         nonlocal prev_chunk
-        # update chunks when crossing chunk boundary
+        # schedule update when crossing chunk boundary
         cx, cz = cm.chunk_coord(player.x, player.z)
         if (cx, cz) != prev_chunk:
             cm.update(player.position, palette)
             prev_chunk = (cx, cz)
-        info.text = f'Chunks: {len(cm.chunks)} | Blocks: {len(cm.blocks)} | Palette: {current_idx+1}'
+
+        # process a small number of chunks per frame so UI remains responsive
+        generated, total = cm.process_queue(palette, per_frame=1)
+        if total > 0:
+            loading_overlay.enabled = True
+            loading_text.enabled = True
+            info.text = f'Loading chunks... remaining: {total}'
+        else:
+            loading_overlay.enabled = False
+            loading_text.enabled = False
+            info.text = f'Chunks: {len(cm.chunks)} | Blocks: {len(cm.blocks)} | Palette: {current_idx+1}'
 
     app.run()
