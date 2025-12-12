@@ -91,7 +91,7 @@ class ChunkManager:
 
 class Mob(Entity):
     def __init__(self, position=(0,0,0), target=None, world_blocks=None, health=6, speed=2, **kwargs):
-        super().__init__(model='cube', color=color.rgb(180,50,50), scale=0.9, position=position, collider='box', **kwargs)
+        super().__init__(model='cube', texture=tex_mob, scale=0.9, position=position, collider='box', **kwargs)
         self.target = target
         self.world_blocks = world_blocks
         self.health = health
@@ -143,7 +143,14 @@ def main():
     player = FirstPersonController(y=1)
 
     # palette and UI
-    palette = [color.rgb(200, 180, 60), color.light_gray, color.rgb(100, 200, 140), color.rgb(180, 100, 200)]
+        # palette and UI (map to textures)
+        tex_dirt = load_texture('assets/textures/dirt.png')
+        tex_grass = load_texture('assets/textures/grass.png')
+        tex_stone = load_texture('assets/textures/stone.png')
+        tex_wood = load_texture('assets/textures/wood.png')
+        tex_mob = load_texture('assets/textures/mob.png')
+
+        palette = [tex_dirt, tex_grass, tex_stone, tex_wood]
     info = Text(text='Chunks: -- | Blocks: -- | 1-4 palette | F5 save | F9 load', origin=(0, 8), background=True)
 
     cm = ChunkManager(chunk_size=16, view_distance=2)
@@ -174,6 +181,7 @@ def main():
     inv_cols = 9
     inv_rows = 4
     inv_parent = Entity(parent=camera.ui, enabled=False)
+        hotbar_size = 9
     inv_bg = Entity(parent=inv_parent, model='quad', color=color.rgba(20, 20, 20, 220), scale=(0.7, 0.5), y=0)
     inv_slots = []
     inv_spacing = 0.07
@@ -209,7 +217,16 @@ def main():
         with open(world_file, 'r') as f:
             data = json.load(f)
         for item in data:
-            pos = tuple(item['pos'])
+                # find texture index
+                tex = getattr(ent, 'texture', None)
+                color_idx = 0
+                if tex == palette[1]:
+                    color_idx = 1
+                elif tex == palette[2]:
+                    color_idx = 2
+                elif tex == palette[3]:
+                    color_idx = 3
+                data.append({'pos': pos, 'color_idx': color_idx})
             idx = int(item.get('color_idx', 0))
             ent = Entity(model='cube', color=palette[idx % len(palette)], position=pos, collider='box')
             cm.blocks[pos] = ent
