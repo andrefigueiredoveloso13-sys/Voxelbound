@@ -1,6 +1,6 @@
 Voxelbound — Prototype
 
-Este diretório contém um esqueleto mínimo do jogo "Voxelbound" usando Python + Pygame.
+Este diretório contém o protótipo 3D do jogo "Voxelbound" implementado com Python + Ursina.
 
 Como executar (Windows):
 
@@ -17,44 +17,24 @@ python -m venv .venv
 pip install -r requirements.txt
 ```
 
-3. Execute o jogo:
+3. Execute o protótipo 3D:
 
 ```powershell
-python main.py
-```
-
-Controles (2D prototype):
-- `WASD` ou setas: mover
-- `Esc`: sair
-
-3D Prototype (Ursina):
-
-- Execute:
-
-```powershell
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
 python run3d.py
 ```
 
-- Controles (3D):
+Controles (3D):
 - `WASD`: mover
 - mouse: olhar
 - `left click`: colocar bloco
 - `right click`: remover bloco
-
-Funcionalidades adicionais (3D):
-
-- `1`-`4`: selecionar tipo de bloco
-- `F5`: salvar mundo para `world.json`
-- `F9`: carregar mundo de `world.json`
+- `1`-`4`: selecionar tipo de bloco (hotbar)
+- `1`-`9`: selecionar slot da hotbar
+- `I`: abrir/fechar inventário
+- `F5`: salvar mundo (`world.json`)
+- `F9`: carregar mundo (`world.json`)
 - `L`: alternar iluminação direcional
 
 Os blocos são salvos como uma lista de posições e índices de cor em `world.json` na raiz do projeto.
 
-Observação: o protótipo 3D usa a biblioteca `ursina`. Se ocorrerem problemas, verifique se sua versão do Python é compatível com `ursina` e instale uma versão compatível manualmente.
-
-Observações:
-- Este é apenas um protótipo minimalista para iniciar o jogo localmente.
-- Se tiver problemas ao instalar `pygame`, instale uma versão compatível com sua Python (ex.: `pip install pygame==2.1.3`).
+Observação: o protótipo 3D usa a biblioteca `ursina`. Se ocorrerem problemas, verifique se sua versão do Python é compatível com `ursina`.
