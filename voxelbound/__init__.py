@@ -1,0 +1,1 @@
+"""Voxelbound package entry."""
